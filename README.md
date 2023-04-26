@@ -1,4 +1,4 @@
-# Anonfiles-XSS
+# JavaScript XSS
 Runs js on users computer then sends it to discord webhook
 
 # How to use?

